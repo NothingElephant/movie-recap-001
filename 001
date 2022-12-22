@@ -1,0 +1,629 @@
+import moviepy
+import cv2
+import requests
+import BeautifulSoup
+import speech_recognition as sr
+import nltk
+
+# Read input movie video file using moviepy
+def read_movie(file_path):
+    movie = moviepy.editor.VideoFileClip(file_path)
+    return movie
+
+# Analyze video frames using OpenCV
+def analyze_video_frames(frames):
+    shot_boundaries = []
+    scene_changes = []
+    character_faces = []
+    for frame_index, frame in enumerate(frames):
+        # Extract shot boundaries
+        frame_gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        frame_diff = cv2.absdiff(frame_gray, frame_gray)
+        if cv2.countNonZero(frame_diff) > threshold:
+            shot_boundaries.append(frame_index)
+        # Extract scene changes
+        frame_edges = cv2.Canny(frame_gray, 100, 200)
+        if cv2.countNonZero(frame_edges) > threshold:
+            scene_changes.append(frame_index)
+        # Extract character faces
+        face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(frame_gray, 1.3, 5)
+        for (x, y, w, h) in faces:
+            character_faces.append((x, y, w, h))
+    return shot_boundaries, scene_changes, character_faces
+
+# Extract plot synopsis from IMDB webpage
+def get_plot_synopsis(title, year):
+    # Construct the URL for the IMDB webpage
+    url = f'https://www.imdb.com/title/{title}/{year}'
+    # Send a GET request to the URL
+    response = requests.get(url)
+    # Parse the HTML of the webpage
+    soup = BeautifulSoup(response.text, 'html.parser')
+    # Find the div containing the plot synopsis
+    synopsis_div = soup.find('div', class_='plot_summary')
+    # Extract the plot synopsis from the div
+    synopsis = synopsis_div.find('div', class_='summary_text').text
+    return synopsis
+
+# Transcribe audio using SpeechRecognition
+def transcribe_audio(audio_path):
+    # Initialize the SpeechRecognition library
+    r = sr.Recognizer()
+    # Read the audio file
+    with sr.AudioFile(audio_path) as source:
+        audio = r.record(source)
+    # Transcribe the audio
+    transcription = r.recognize_google(audio)
+    return transcription
+
+def extract_visual_effects(frames):
+    cgi_elements = []
+    animation_elements = []
+    special_effects = []
+    for frame in frames:
+        # Identify CGI elements using color thresholding
+        lower_bound = (0, 0, 220)
+        upper_bound = (180, 180, 255)
+        mask = cv2.inRange(frame, lower_bound,upper_bound)
+cgi_elements.extend(cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE))
+# Identify animation elements using edge detection
+frame_edges = cv2.Canny(frame, 100, 200)
+animation_elements.extend(cv2.findContours(frame_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE))
+# Identify special effects using object detection
+model = cv2.dnn.readNetFromCaffe('special_effects_detector.prototxt', 'special_effects_detector.caffemodel')
+(h, w) = frame.shape[:2]
+blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 0.007843, (300, 300), 127.5)
+model.setInput(blob)
+special_effects.extend(model.forward()[0, 0, :, :])
+return cgi_elements, animation_elements, special_effects
+
+Use NLTK to perform natural language processing on plot synopsis and transcribed audio
+def extract_significant_moments(plot_synopsis, transcribed_audio):
+# Tokenize the text
+plot_tokens = nltk.word_tokenize(plot_synopsis)
+audio_tokens = nltk.word_tokenize(transcribed_audio)
+# Perform part-of-speech tagging
+plot_pos_tags = nltk.pos_tag(plot_tokens)
+audio_pos_tags = nltk.pos_tag(audio_tokens)
+# Extract quotes
+quotes = []
+for token in audio_tokens:
+if token in [''', '"']:
+quote = []
+for i in range(audio_tokens.index(token), len(audio_tokens)):
+if audio_tokens[i] in [''', '"']:
+break
+quote.append(audio_tokens[i])
+quotes.append(' '.join(quote))
+# Extract character identities
+named_entities = nltk.ne_chunk(audio_pos_tags)
+character_identities = []
+for entity in named_entities:
+if isinstance(entity, nltk.tree.Tree) and entity.label() == 'PERSON':
+character_identities.append(entity)
+# Identify emotional moments
+emotional_moments = []
+for token in audio_pos_tags:
+if token[1] in ['JJ', 'JJR', 'JJS', 'RB', 'RBR', 'RBS']:
+emotional_moments.append(token)
+return quotes, character_identities, emotional_moments
+
+Use TensorFlow to extract visual information from movie video
+def extract_visual_information(frames):
+model = tf.keras.models.load_model('visual_information_extractor.h5')
+visual_information = []
+for frame in frames:
+# Preprocess frame for model input
+frame = cv2.resize(frame, (224, 224))
+frame = frame.astype('float32') / 255
+frame = np.expand_dims(frame, axis=0)
+# Extract visual information from frame using TensorFlow model
+prediction = model.predict(frame)
+visual_information.append(prediction)
+return visual_information
+
+Perform natural language processing on plot synopsis and transcribed audio
+def perform_nlp(plot_synopsis, transcribed_audio):
+# Tokenize and tag the plot synopsis and transcribed audio
+plot_tokens = nltk.word_tokenize(plot_synopsis)
+plot_tags = nltk.pos_tag(plot_tokens)
+audio_tokens = nltk.word_tokenize(transcribed_audio)
+audio_tags = nltk.pos_tag(audio_tokens)
+# Extract quotes from the transcribed audio
+quotes = []
+for i, tag in enumerate(audio_tags):
+if tag[1] == 'NN':
+if audio_tags[i-1][1] == 'VBZ':
+quote = []
+for j in range(i, len(audio_tags)):
+if audio_tags[j][1] == '.':
+break
+quote.append(audio_tags[j][0])
+quotes.append(' '.join(quote))
+# Use spaCy to perform advanced natural language processing
+nlp = spacy.load('en_core_web_md')
+plot_doc = nlp(plot_synopsis)
+audio_doc = nlp(transcribed_audio)
+# Identify the emotional moments in the movie
+emotional_moments = []
+for sent in plot_doc.sents:
+if sent.sentiment > 0.5:
+emotional_moments.append(sent.text)
+for ent in audio_doc.ents:
+if ent.label_ in ['POSITIVE', 'NEGATIVE']:
+emotional_moments.append(ent.text)
+# Extract character identities from the plot synopsis and transcribed audio
+character_identities = []
+for ent in plot_doc.ents:
+if ent.label_ == 'PERSON':
+character_identities.append(ent.text)
+for ent in audio_doc.ents:
+if ent.label_ == 'PERSON':
+character_identities.append(ent.text)
+return quotes, emotional_moments, character_identities
+
+Analyze video frames using a CNN
+def analyze_video_frames_cnn(frames):
+# Preprocess frames for model input
+frames = np.array(frames, dtype='float32') / 255
+frames = np.expand_dims(frames, axis=3)
+# Load trained CNN model
+model = tf.keras.models.load_model('video_frame_analyzer.h5')
+# Analyze frames using CNN
+predictions = model.predict(frames)
+shot_boundaries = []
+scene_changes = []
+for i, prediction in enumerate(predictions):
+if prediction append(pos_tags[i-1][0])
+return quotes, character_identities
+
+Use BERT to perform sentiment analysis on quotes
+def identify_emotional_moments(quotes):
+# Load pre-trained BERT model
+model = transformers.BertModel.from_pretrained('bert-base-uncased')
+# Tokenize quotes
+input_ids = []
+attention_masks = []
+for quote in quotes:
+encoded_dict = tokenizer.encode_plus(
+quote,
+add_special_tokens=True,
+max_length=64,
+pad_to_max_length=True,
+return_attention_mask=True,
+return_tensors='pt',
+)
+input_ids.append(encoded_dict['input_ids'])
+attention_masks.append(encoded_dict['attention_mask'])
+input_ids = torch.cat(input_ids, dim=0)
+attention_masks = torch.cat(attention_masks, dim=0)
+# Use BERT to classify quotes as positive or negative
+outputs = model(input_ids, attention_mask=attention_masks)
+logits = outputs[0]
+positive_probs = torch.sigmoid(logits[:, 1]).detach().cpu().numpy()
+emotional_moments = []
+for i, quote in enumerate(quotes):
+if positive_probs[i] > 0.5:
+emotional_moments.append((quote, 'positive'))
+else:
+emotional_moments.append((quote, 'negative'))
+return emotional_moments
+
+Use GPT-3 to extract named entities from plot synopsis and transcribed audio
+def extract_named_entities(text):
+# Load pre-trained GPT-3 model
+model = transformers.GPT2Model.from_pretrained('gpt2')
+# Tokenize text
+input_ids = tokenizer.encode(text, return_tensors='pt')
+# Use GPT-3 to classify tokens as named entities
+outputs = model(input_ids)
+logits = outputs[0]
+entity_probs = torch.sigmoid(logits[:, :]).detach().cpu().numpy()
+tokens = tokenizer.convert_ids_to_tokens(input_ids[0].tolist())
+named_entities = []
+for i, token in enumerate(tokens):
+if entity_probs[i][0] > 0.5:
+named_entities.append(token)
+return named_entities
+
+# Extract named entities from plot synopsis
+plot_named_entities = extract_named_entities(plot_synopsis)
+# Extract named entities from transcribed audio
+transcribed_named_entities = extract_named_entities(transcribed_audio)
+# Combine named entities from plot synopsis and transcribed audio
+named_entities = plot_named_entities + transcribed_named_entities
+
+# Create a summary of the major character arcs and developments in the movie
+character_arcs = []
+for entity in named_entities:
+    if entity in character_arcs:
+        character_arcs[entity]['appearances'] += 1
+    else:
+        character_arcs[entity] = {'appearances': 1}
+
+# Identify key characters in the film
+key_characters = []
+for entity in named_entities:
+if character_arcs[entity]['appearances'] > MIN_APPEARANCES:
+key_characters.append(entity)
+
+Sync data with the moviepy library
+movie = moviepy.editor.VideoFileClip(file_path)
+for character in key_characters:
+# Find the first appearance of the character in the movie
+for i, frame in enumerate(movie.iter_frames()):
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+faces = face_cascade.detectMultiScale(frame, 1.3, 5)
+for (x, y, w, h) in faces:
+if (x, y, w, h) in character_faces:
+character_start = i
+break
+# Find the last appearance of the character in the movie
+for i, frame in enumerate(reversed(list(movie.iter_frames()))):
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+faces = face_cascade.detectMultiScale(frame, 1.3, 5)
+for (x, y, w, h) in faces:
+if (x, y, w, h) in character_faces:
+character_end = len(movie.iter_frames()) - i
+break
+
+Extract dialogue and scenes involving the character
+character_dialogue = []
+character_scenes = []
+for i, frame in enumerate(movie.iter_frames()):
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+faces = face_cascade.detectMultiScale(frame, 1.3, 5)
+for (x, y, w, h) in faces:
+if (x, y, w, h) in character_faces:
+character_scenes.append(i)
+
+Find the corresponding transcribed audio
+for line in transcribed_audio:
+if character in line:
+character_dialogue.append(line)
+
+Create a summary of the character's arc
+character_arc = {
+'name': character,
+'appearances': character_arcs[character]['appearances'],
+'start': character_start,
+'end': character_end,
+'dialogue': character_dialogue,
+'scenes': character_scenes
+}
+character_arcs.append(character_arc)
+
+Create a summary of the movie's themes
+themes = []
+for line in transcribed_audio:
+for theme in THEME_WORDS:
+if theme in line:
+themes.append(theme)
+
+Create a summary of the movie's emotional moments
+emotional_moments = []
+for line in transcribed_audio:
+for emotion in EMOTION_WORDS:
+if emotion in line:
+emotional_moments.append(line)
+
+Create a summary of the movie's quotes
+quotes = []
+for line in transcribed_audio:
+if '"' in line:
+quote = ''
+i = transcribed_audio.index(line) + 1
+while '"' not in transcribed_audio[i]:
+quote += transcribed_audio[i] + ' '
+i += 1
+quote += transcribed_audio[i]
+quotes.append(quote)
+
+Create a summary of the movie's visual effects
+visual_effects = []
+for i, frame in enumerate(movie.iter_frames()):
+
+Identify CGI elements using color thresholding
+lower_bound = (0, 0, 220)
+upper_bound = (180, 180, 255)
+mask = cv2.inRange(frame, lower_bound, upper_bound)
+contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+for contour in contours:
+if cv2.contourArea(contour) > MIN_CONTOUR_AREA:
+cgi_elements.append(contour)
+
+Identify animation elements using edge detection
+frame_edges = cv2.Canny(frame, 100, 200)
+contours, _ = cv2.findContours(frame_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+for contour in contours:
+if cv2.contourArea(contour) > MIN_CONTOUR_AREA:
+animation_elements.append(contour)
+
+Identify special effects using object detection
+model = cv2.dnn.readNetFromCaffe('special_effects_detector.prototxt', 'special_effects_detector.caffemodel')
+(h, w) = frame.shape[:2]
+blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 0.007843, (300, 300), 127.5)
+model.setInput(blob)
+detections = model.forward()
+for i in range(0, detections.shape[2]):
+if detections[0, 0, i, 2] > MIN_CONFIDENCE:
+box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+(startX, startY, endX, endY) = box.astype("int")
+special_effects.append((startX, startY, endX, endY))
+
+return cgi_elements, animation_elements, special_effects
+
+our in contours:
+if cv2.contourArea(contour) > MIN_CONTOUR_AREA:
+cgi_elements.append(contour)
+
+Identify animation elements using edge detection
+frame_edges = cv2.Canny(frame, 100, 200)
+contours, _ = cv2.findContours(frame_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+for contour in contours:
+if cv2.contourArea(contour) > MIN_CONTOUR_AREA:
+animation_elements.append(contour)
+
+Identify special effects using object detection
+model = cv2.dnn.readNetFromCaffe('special_effects_detector.prototxt', 'special_effects_detector.caffemodel')
+(h, w) = frame.shape[:2]
+blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 0.007843, (300, 300), 127.5)
+model.setInput(blob)
+detections = model.forward()
+for i in range(0, detections.shape[2]):
+if detections[0, 0, i, 2] > MIN_CONFIDENCE:
+box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+(startX, startY, endX, endY) = box.astype("int")
+special_effects.append((startX, startY, endX, endY))
+
+return cgi_elements, animation_elements, special_effects
+
+Use the identified emotional moments and quotes to create a summary of the major emotional themes and ideas explored in the movie
+def summarize_emotional_themes(emotional_moments, quotes):
+emotional_themes = []
+for moment in emotional_moments:
+for quote in quotes:
+if moment in quote:
+emotional_themes.append(quote)
+return emotional_themes
+
+Use the identified comedic moments to create a list of significant comedic elements in the movie
+def list_significant_moments(transcribed_audio, category):
+significant_moments = []
+for line in transcribed_audio:
+if category in line:
+significant_moments.append(line)
+return significant_moments
+
+Train machine learning model
+import tensorflow as tf
+
+def train_ml_model(synopses, transcriptions):
+# Create dataset from synopses and transcriptions
+dataset = tf.data.Dataset.from_tensor_slices((synopses, transcriptions))
+# Split dataset into training and testing sets
+train_dataset = dataset.shuffle(len(synopses)).batch(16)
+test_dataset = dataset.batch(16)
+# Create model
+model = tf.keras.Sequential([
+tf.keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length),
+tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
+tf.keras.layers.Dense(6, activation='sigmoid')
+])
+# Compile model
+model.compile(loss='binary_crossentropy',
+optimizer='adam',
+metrics=['accuracy'])
+
+Train model
+history = model.fit(train_dataset, epochs=10, validation_data=test_dataset)
+
+Save model
+model.save('emotion_classifier.h5')
+
+Use the trained machine learning model to classify emotional moments in the movie
+def classify_emotional_moments(model, frames):
+emotional_moments = []
+for frame in frames:
+
+Use the trained TensorFlow model to extract emotional information from the frame
+emotions = model.predict(frame)
+
+If the model predicts a strong emotion, classify the frame as an emotional moment
+if emotions[0] > 0.5:
+emotional_moments.append(frame)
+return emotional_moments
+
+Generate summary
+def generate_summary(character_arcs, emotional_themes, comedic_elements, emotional_moments):
+summary = ''
+
+Add character arcs to summary
+summary += 'Major character arcs: \n'
+for arc in character_arcs:
+summary += arc + '\n'
+
+Add emotional themes to summary
+summary += '\nEmotional themes: \n'
+for theme in emotional_themes:
+summary += theme + '\n'
+
+Add comedic elements to summary
+summary += '\nComedic elements: \n'
+for element in comedic_elements:
+summary += element + '\n'
+
+Add emotional moments to summary
+summary += '\nEmotional moments: \n'
+for moment in emotional_moments:
+summary += moment + '\n'
+
+return summary
+
+Load trained classifier model
+model = joblib.load('sentiment_classifier.pkl')
+
+Classify quotes using trained model
+emotional_moments = []
+for quote in quotes:
+prediction = model.predict([quote])[0]
+if prediction == 'positive':
+emotional_moments.append(quote)
+return emotional_moments
+
+Extract named entities from text
+def extract_named_entities(text):
+named_entities = []
+doc = nlp(text)
+for ent in doc.ents:
+if ent.label_ == 'PERSON':
+named_entities.append(ent.text)
+return named_entities
+
+Create a summary of the major character arcs and developments in the movie
+def summarize_character_arcs(named_entities, plot_synopsis):
+character_arcs = {}
+for entity in named_entities:
+if entity in character_arcs:
+character_arcs[entity]['appearances'] += 1
+else:
+character_arcs[entity] = {'appearances': 1}
+
+Use BERT to classify character mentions in the plot synopsis as positive or negative
+model = transformers.BertModel.from_pretrained('bert-base-uncased')
+input_ids = []
+attention_masks = []
+for entity in character_arcs:
+encoded_dict = tokenizer.encode_plus(
+entity,
+add_special_tokens=True,
+max_length=64,
+pad_to_max_length=True,
+return_attention_mask=True,
+return_tensors='pt',
+)
+input_ids.append(encoded_dict['input_ids'])
+attention_masks.append(encoded_dict['attention_mask'])
+input_ids = torch.cat(input_ids, dim=0)
+attention_masks = torch.cat(attention_masks, dim=0)
+output = model(input_ids, attention_mask=attention_masks)
+logits = output[0]
+predictions = torch.sigmoid(logits)
+
+for i, entity in enumerate(character_arcs):
+character_arcs[entity]['sentiment'] = predictions[i].item()
+
+Use the identified emotional moments and quotes to create a summary of the major emotional themes and ideas explored in the movie
+def summarize_emotional_themes(quotes, transcribed_audio):
+emotional_themes = []
+for quote in quotes:
+
+Use BERT to classify quote as positive or negative
+model = transformers.BertModel.from_pretrained('bert-base-uncased')
+input_ids = []
+attention_masks = []
+encoded_dict = tokenizer.encode_plus(
+quote,
+add_special_tokens=True,
+max_length=64,
+pad_to_max_length=True,
+return_attention_mask=True,
+return_tensors='pt',
+)
+input_ids.append(encoded_dict['input_ids'])
+attention_masks.append(encoded_dict['attention_mask'])
+input_ids = torch.cat(input_ids, dim=0)
+attention_masks = torch.cat(attention_masks, dim=0)
+output = model(input_ids, attention_mask=attention_masks)
+logits = output[0]
+prediction = torch.sigmoid(logits)
+if prediction > 0.5:
+emotional_themes.append('positive')
+else:
+emotional_themes.append('negative')
+
+Use the identified emotional moments and quotes to create a list of significant moments in the movie (e.g. character arcs, emotional themes, comedic elements)
+def list_significant_moments(transcribed_audio, theme):
+significant_moments = []
+for quote in quotes:
+
+Use BERT to classify quote as relevant or not relevant to the specified theme
+model = transformers.BertModel.from_pretrained('bert-base-uncased')
+input_ids = []
+attention_masks = []
+encoded_dict = tokenizer.encode_plus(
+quote,
+add_special_tokens=True,
+max_length=64,
+pad_to_max_length=True,
+return_attention_mask=True,
+return_tensors='pt',
+)
+input_ids.append(encoded_dict['input_ids'])
+attention_masks.append(encoded_dict['attention_mask'])
+input_ids = torch.cat(input_ids, dim=0)
+attention_masks = torch.cat(attention_masks, dim=0)
+outputs = model(input_ids, attention_mask=attention_masks)
+_, prediction = torch.max(outputs[0], dim=1)
+if prediction == 1:
+significant_moments.append(quote)
+return significant_moments
+
+def list_significant_moments(transcribed_audio, theme, quotes):
+    significant_moments = []
+    
+    # Extract named entities from transcribed audio
+    named_entities = extract_named_entities(transcribed_audio)
+    
+    # Identify relevant quotes
+    relevant_quotes = []
+    for quote in quotes:
+        for entity in named_entities:
+            if entity in quote:
+                relevant_quotes.append(quote)
+                break
+    
+    # Use BERT to classify quotes as relevant or not relevant to the specified theme
+    model = transformers.BertModel.from_pretrained('bert-base-uncased')
+    input_ids = []
+    attention_masks = []
+    for quote in relevant_quotes:
+        encoded_dict = tokenizer.encode_plus(
+            quote,
+            add_special_tokens=True,
+            max length=64,
+pad_to_max_length=True,
+return_attention_mask=True,
+return_tensors='pt',
+)
+input_ids.append(encoded_dict['input_ids'])
+attention_masks.append(encoded_dict['attention_mask'])
+input_ids = torch.cat(input_ids, dim=0)
+attention_masks = torch.cat(attention_masks, dim=0)
+outputs = model(input_ids, attention_mask=attention_masks)
+_, predictions = torch.max(outputs[0], dim=1)
+for i, prediction in enumerate(predictions):
+if prediction == 1:
+significant_moments.append(relevant_quotes[i])
+
+return significant_moments
+
+transcribed_audio = load_transcribed_audio()
+plot_synopsis = load_plot_synopsis()
+quotes = extract_quotes(transcribed_audio)
+named_entities = extract_named_entities(transcribed_audio)
+relevant_quotes = []
+for quote in quotes:
+    for entity in named_entities:
+        if entity in quote:
+            relevant_quotes.append(quote)
+            break
+significant_moments = list_significant_moments(transcribed_audio, theme, relevant_quotes)
+
+
+
+
+
+   
+
